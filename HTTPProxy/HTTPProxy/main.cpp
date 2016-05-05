@@ -1,34 +1,35 @@
-#include <stdio.h>
+ï»¿#include <stdio.h>
 #include <Windows.h>
 #include <process.h>
 #include <string.h>
+#include <tchar.h>
 
 #pragma comment(lib,"Ws2_32.lib")
-#define MAXSIZE 65507 //·¢ËÍÊı¾İ±¨ÎÄµÄ×î´ó³¤¶È
+#define MAXSIZE 65507 //maximum size of datagram
 #define HTTP_PORT 80 //http server port
 
 struct HttpHeader {
-	char method[4];  //POST»òÕßGET£¬×¢ÒâÓĞĞ©ÎªCONNECT£¬±¾ÊµÑéÔİ²»¿¼ÂÇ
-	char url[1024];  //ÇëÇóµÄurl
+	char method[4];  //POST or GET, some are CONNECT, but this Lab does not consider of it
+	char url[1024];  //requested url
 	char host[1024];  //target host
 	char cookie[1024 * 10];  //cookie
 	HttpHeader() {
-		ZeroMemory(this, sizeof(HttpHeader));   /***************///ÄÚ´æÖÃÁã????
+		ZeroMemory(this, sizeof(HttpHeader));  //Fills a block of memory with zeros
 	}
 };
 
 bool InitSocket();
 void ParseHttpHead(char *buffer, HttpHeader *httpHeader);
 bool ConnectToServer(SOCKET *serverSocket, char *host);
-unsigned int __stdcall ProxyThread(LPVOID lpParameter);   /*********/
+unsigned int __stdcall ProxyThread(LPVOID lpParameter);  
 
-														  //proxy arguments
+//proxy arguments
 SOCKET ProxyServer;
 sockaddr_in ProxyServerAddr;
-const int ProxyPort = 10240;  /*********************/
+const int ProxyPort = 20240; 
 
-							  //a new connction should be dealt with a new thread, and the frequent creation and destruction of thread can consume a lot of resource
-							  //using thread pool to promote the efficiency
+//a new connction should be dealt with a new thread, and the frequent creation and destruction of thread can consume a lot of resource
+//using thread pool to promote the efficiency
 const int ProxyThreadMaxNum = 20;
 //HANDLE ProxyThreadHandle[ProxyThreadMaxNum] = {0};
 //DWORD ProxyThreadDW[ProxyThreadMaxNum] = {0};
@@ -38,35 +39,34 @@ struct ProxyParam {
 	SOCKET serverSocket;
 };
 
-int main(int argc, char* argv[]) {  /*****************/
-	printf("´úÀí·şÎñÆ÷ÕıÔÚÆô¶¯\n");
-	printf("³õÊ¼»¯...\n");
+int _tmain(int argc, _TCHAR* argv[]) {
+	printf("Proxy server is starting...\n");
+	printf("Initialize...\n");
 	if (!InitSocket()) {
-		printf("socket³õÊ¼»¯Ê§°Ü\n");
+		printf("socket initialize failed!\n");
 		return -1;
 	}
-	printf("´úÀí·şÎñÆ÷ÕıÔÚÔËĞĞ£¬¼àÌı¶Ë¿Ú %d\n", ProxyPort);
+	printf("Proxy server is running, listening to port %d\n", ProxyPort);
 	SOCKET acceptSocket = INVALID_SOCKET;
 	ProxyParam *lpProxyParam;
 	HANDLE hThread;
 	DWORD dwThreadID;
 	//Proxy Server keeps listening
 	while (true) {
-		acceptSocket = accept(ProxyServer, NULL, NULL);  /**********/
+		acceptSocket = accept(ProxyServer, NULL, NULL);  
 		lpProxyParam = new ProxyParam;
 		if (lpProxyParam == NULL) {
 			continue;
 		}
 		lpProxyParam->clientSocket = acceptSocket;
-		hThread = (HANDLE)_beginthreadex(NULL, 0, &ProxyThread, (LPVOID)lpProxyParam, 0, 0); //**************/
+		hThread = (HANDLE)_beginthreadex(NULL, 0, &ProxyThread, (LPVOID)lpProxyParam, 0, 0);  
 		CloseHandle(hThread);
 		Sleep(200);
 	}
 	closesocket(ProxyServer);
-	WSACleanup(); //***************/
+	WSACleanup(); 
 	return 0;
 }
-
 
 
 //************************************
@@ -91,9 +91,9 @@ bool InitSocket() {
 		printf("load winsock failed, error code is:%d\n", WSAGetLastError());
 		return false;
 	}
-	if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {  /*************/
+	if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {  
 		printf("Cannot find the correct winsock version\n");
-		WSACleanup();    /*****/
+		WSACleanup();    
 		return false;
 	}
 	ProxyServer = socket(AF_INET, SOCK_STREAM, 0);
@@ -109,7 +109,7 @@ bool InitSocket() {
 		return false;
 	}
 	if (listen(ProxyServer, SOMAXCONN) == SOCKET_ERROR) {
-		printf("listening port %d failed", ProxyPort);
+		printf("listening to port %d failed", ProxyPort);
 		return false;
 	}
 	return true;
@@ -145,16 +145,21 @@ unsigned int __stdcall ProxyThread(LPVOID lpParameter) {
 	if (!ConnectToServer(&((ProxyParam*)lpParameter)->serverSocket, httpHeader->host)) {
 		goto error;
 	}
-	printf("proxy connect host %s success!\n", httpHeader->host);
+	printf("proxy connects to host %s success!\n", httpHeader->host);
 	//send the HTTP datagram form the client to the target server directly
 	ret = send(((ProxyParam *)lpParameter)->serverSocket, Buffer, strlen(Buffer) + 1, 0);
+
+	printf("ret = %d\n", ret);
+
 	//waiting for the target server to return data
 	recvSize = recv(((ProxyParam *)lpParameter)->serverSocket, Buffer, MAXSIZE, 0);
+	printf("recvSize = %d\n", recvSize);
 	if (recvSize <= 0) {
 		goto error;
 	}
 	//send the data from the target server to client directly
 	ret = send(((ProxyParam*)lpParameter)->clientSocket, Buffer, sizeof(Buffer), 0);
+	printf("ret = %d\n", ret);
 	//error handling
 error:
 	printf("close the socket\n");
@@ -176,11 +181,11 @@ error:
 //Parameter: HttpHeader *httpHeader
 //*************************
 
-void ParseHttpHead(char *buffer, HttpHeader *httpHeader) { 
+void ParseHttpHead(char *buffer, HttpHeader *httpHeader) {
 	char *p;
 	char *ptr;
-	const char *delim = "\r\n";//»»ĞĞ·û
-	p = strtok_s(buffer, delim, &ptr);//ÌáÈ¡µÚÒ»ĞĞ
+	const char *delim = "\r\n";  //æ¢è¡Œç¬¦
+	p = strtok_s(buffer, delim, &ptr);  //æå–ç¬¬ä¸€è¡Œ
 	printf("%s\n", p);
 	if (p[0] == 'G') {	//GET
 		memcpy(httpHeader->method, "GET", 3);
@@ -190,8 +195,8 @@ void ParseHttpHead(char *buffer, HttpHeader *httpHeader) {
 		memcpy(httpHeader->method, "POST", 4);
 		memcpy(httpHeader->url, &p[5], strlen(p) - 14);
 	}
-	printf("%s\n", httpHeader->url);//url
-	p = strtok_s(NULL, delim, &ptr);//Ê¹ÓÃ»»ĞĞ·û·Ö¸î£¬ÌáÈ¡µ±Ç°ĞĞ
+	printf("%s\n", httpHeader->url);  //url
+	p = strtok_s(NULL, delim, &ptr);  //ä½¿ç”¨æ¢è¡Œç¬¦åˆ†å‰²ï¼Œæå–å½“å‰è¡Œ
 	while (p) {
 		switch (p[0]) {
 		case 'H'://HOST
@@ -210,7 +215,7 @@ void ParseHttpHead(char *buffer, HttpHeader *httpHeader) {
 		default:
 			break;
 		}
-		p = strtok_s(NULL, delim, &ptr);//Ê¹ÓÃ»»ĞĞ·û·Ö¸î£¬ÌáÈ¡µ±Ç°ĞĞ
+		p = strtok_s(NULL, delim, &ptr);  //ä½¿ç”¨æ¢è¡Œç¬¦åˆ†å‰²ï¼Œæå–å½“å‰è¡Œ
 	}
 }
 
@@ -219,15 +224,15 @@ void ParseHttpHead(char *buffer, HttpHeader *httpHeader) {
 //FullName:			ConnectToServer
 //Access:			public
 //Returns:			bool
-//Qualifier:		¸ù¾İÖ÷»ú´´½¨Ä¿±ê·şÎñÆ÷Ì×½Ó×Ö£¬²¢Á¬½Ó
+//Qualifier:		æ ¹æ®ä¸»æœºåˆ›å»ºç›®æ ‡æœåŠ¡å™¨å¥—æ¥å­—ï¼Œå¹¶è¿æ¥
 //Parameter:		SOCKET *serverSocket
 //Parameter:		char *host
 //**************************************
-bool ConnectToServer(SOCKET *serverSocket, char *host) {//´úÀí·ÃÎÊserver
+bool ConnectToServer(SOCKET *serverSocket, char *host) {//ä»£ç†è®¿é—®server
 	sockaddr_in serverAddr;
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_port = htons(HTTP_PORT);
-	HOSTENT *hostent = gethostbyname(host);//»ñÈ¡Ö÷»úÃû×Ö¡¢µØÖ·ĞÅÏ¢
+	HOSTENT *hostent = gethostbyname(host);  //è·å–ä¸»æœºåå­—ã€åœ°å€ä¿¡æ¯
 	if (!hostent) {
 		return false;
 	}
@@ -237,7 +242,7 @@ bool ConnectToServer(SOCKET *serverSocket, char *host) {//´úÀí·ÃÎÊserver
 	if (*serverSocket == INVALID_SOCKET) {
 		return false;
 	}
-	if (connect(*serverSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {//³¢ÊÔÁ¬½Ó
+	if (connect(*serverSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {//å°è¯•è¿æ¥
 		closesocket(*serverSocket);
 		return false;
 	}
