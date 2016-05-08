@@ -7,7 +7,7 @@
 
 #define SERVER_PORT 12340 //接收数据的端口号
 #define SERVER_IP "127.0.0.1" // 服务器的 IP 地址
-const int BUFFER_LENGTH = 1026;
+const int BUFFER_LENGTH = 1026;  //缓冲区大小，（以太网中UDP的数据帧中包长度应小于1480字节）
 const int SEQ_SIZE = 20;//接收端序列号个数，为 1-20
 
 
@@ -48,6 +48,7 @@ BOOL lossInLossRatio(float lossRatio) {
 
 int main(int argc, char* argv[])
 {
+	printf("******************客户端******************");
 	//加载套接字库（必须）
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -70,7 +71,7 @@ int main(int argc, char* argv[])
 	else {
 		printf("The Winsock 2.2 dll was found okay\n");
 	}
-	SOCKET socketClient = socket(AF_INET, SOCK_DGRAM, 0);
+	SOCKET socketClient = socket(AF_INET, SOCK_DGRAM, 0);  //无连接、不可靠的数据报
 	SOCKADDR_IN addrServer;
 	addrServer.sin_addr.S_un.S_addr = inet_addr(SERVER_IP);
 	addrServer.sin_family = AF_INET;
@@ -84,10 +85,10 @@ int main(int argc, char* argv[])
 	//					[Y]表示 ACK 丢包概率
 	printTips();
 	int ret;
-	int interval = 1;//收到数据包之后返回 ack 的间隔，默认为 1 表示每个都返回 ack， 0 或者负数均表示所有的都不返回 ack
+	int interval = 1;//收到数据包之后返回ACK的间隔，默认为 1 表示每个都返回ACK， 0 或者负数均表示所有的都不返回ACK
 	char cmd[128];
 	float packetLossRatio = 0.2; //默认包丢失率 0.2
-	float ackLossRatio = 0.2;   //默认 ACK 丢失率 0.2
+	float ackLossRatio = 0.2;   //默认ACK丢失率 0.2
 	//用时间作为随机种子，放在循环的最外面
 	srand((unsigned)time(NULL));
 	while (true) {

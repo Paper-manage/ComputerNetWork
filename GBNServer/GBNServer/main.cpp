@@ -191,7 +191,7 @@ int main(int argc, char* argv[])
 			strcpy_s(buffer, strlen("Good bye!") + 1, "Good bye!");
 		}
 		else if (strcmp(buffer, "-testgbn") == 0) {
-			//进入 gbn 测试阶段
+			//进入 GBN 测试阶段
 			//首先 server（server 处于 0 状态）向 client 发送 205 状态码（server进入 1 状态）
 			//server 等待 client 回复 200 状态码，如果收到（server 进入 2 状态），则开始传输文件，否则延时等待直至超时
 			//在文件传输阶段， server 发送窗口大小设为
@@ -208,13 +208,13 @@ int main(int argc, char* argv[])
 			bool runFlag = true;
 			while (runFlag) {
 				switch (stage) {
-					case 0://发送 205 阶段
+					case 0:  //发送 205 阶段
 						buffer[0] = 205;
 						sendto(sockServer, buffer, strlen(buffer) + 1, 0, (SOCKADDR*)&addrClient, sizeof(SOCKADDR));
 						Sleep(100);
 						stage = 1;
 						break;
-					case 1://等待接收 200 阶段，没有收到则计数器+1，超时则放弃此次“连接”，等待从第一步开始
+					case 1:  //等待接收 200 阶段，没有收到则计数器+1，超时则放弃此次“连接”，等待从第一步开始
 						recvSize = recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
 						if (recvSize < 0) {
 							++waitCount;
@@ -253,11 +253,11 @@ int main(int argc, char* argv[])
 							++totalSeq;
 							Sleep(500);
 						}
-						//等待 Ack，若没有收到，则返回值为-1，计数器+1
+						//等待ACK，若没有收到，则返回值为-1，计数器+1
 						recvSize = recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
 						if (recvSize < 0) {
 							waitCount++;
-							//20 次等待 ack 则超时重传
+							//20 次等待ACK则超时重传
 							if (waitCount > 20)
 							{
 								timeoutHandler();
@@ -265,7 +265,7 @@ int main(int argc, char* argv[])
 							}
 						}
 						else {
-							//收到 ack
+							//收到ACK
 							ackHandler(buffer[0]);
 							waitCount = 0;
 						}

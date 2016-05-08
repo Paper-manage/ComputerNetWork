@@ -22,6 +22,10 @@ bool InitSocket();
 void ParseHttpHead(char *buffer, HttpHeader *httpHeader);
 bool ConnectToServer(SOCKET *serverSocket, char *host);
 unsigned int __stdcall ProxyThread(LPVOID lpParameter);
+int Phishing(char *host);
+int key = 0;
+char* oldHost = "";
+char* newHost = "";
 
 //代理相关参数
 SOCKET ProxyServer;
@@ -137,6 +141,19 @@ unsigned int __stdcall ProxyThread(LPVOID lpParameter) {
 	int recvSize;
 	int ret;
 	recvSize = recv(((ProxyParam*)lpParameter)->clientSocket, Buffer, MAXSIZE, 0);
+	oldHost = newHost;
+	if (Phishing(Buffer))  //**********钓鱼
+	{
+		if (key == 0)
+			strcpy(Buffer, "GET http://www.yeeaoo.com/ HTTP/1.1\r\nHost: yeeaoo.com\r\n\r\n");
+		else
+		{
+			if (oldHost != newHost)
+				key = 0;
+			else
+				key = 1;
+		}
+	}
 	if (recvSize <= 0) {
 		goto error;
 	}
@@ -216,12 +233,13 @@ void ParseHttpHead(char *buffer, HttpHeader *httpHeader) {
 		memcpy(httpHeader->url, &p[5], strlen(p) - 14);
 	}
 	printf("%s\n", httpHeader->url);  //url
-	p = strtok_s(NULL, delim, &ptr);  
+	p = strtok_s(NULL, delim, &ptr);
 
 	while (p) {
 		switch (p[0]) {
 		case 'H'://HOST
 			memcpy(httpHeader->host, &p[6], strlen(p) - 6);
+			newHost = httpHeader->host;
 			break;
 		case 'C'://Cookie
 			if (strlen(p) > 8) {
@@ -268,4 +286,15 @@ bool ConnectToServer(SOCKET *serverSocket, char *host) {//代理访问server
 		return false;
 	}
 	return true;
+}
+
+int Phishing(char *host)
+{
+	char* illegal_host[10] = { "sohu.com", "" };
+	for (int i = 0; illegal_host[i] != ""; i++)
+	{
+		if (strstr(host, illegal_host[i]) != NULL)
+			return 1;
+	}
+	return 0;
 }
