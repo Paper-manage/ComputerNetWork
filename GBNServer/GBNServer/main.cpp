@@ -1,31 +1,35 @@
-//#include "stdafx.h" //创建 VS 项目包含的预编译头文件
+//#include "stdafx.h" //创建VS项目包含的预编译头文件
 #include <stdlib.h>
 #include <time.h>
 #include <WinSock2.h>
 #include <fstream>
+
 #pragma comment(lib,"ws2_32.lib")
+
 #define SERVER_PORT 12340   //端口号
 #define SERVER_IP "0.0.0.0" //IP 地址
 const int BUFFER_LENGTH = 1026; //缓冲区大小，（以太网中 UDP 的数据帧中包长度应小于 1480 字节）
-const int SEND_WIND_SIZE = 5;//发送窗口大小为 10， GBN 中应满足 W + 1 <=N（ W 为发送窗口大小， N 为序列号个数）
+const int SEND_WIND_SIZE = 10;//发送窗口大小为 10， GBN 中应满足 W + 1 <= N（W 为发送窗口大小， N 为序列号个数）
 							 //本例取序列号 0...19 共 20 个
 							 //如果将窗口大小设为 1，则为停-等协议
-const int SEQ_SIZE = 20; //序列号的个数，从 0~19 共计 20 个
-						 //由于发送数据第一个字节如果值为 0，则数据会发送失败
-						 //因此接收端序列号为 1~20，与发送端一一对应
-BOOL ack[SEQ_SIZE];//收到 ack 情况，对应 0~19 的 ack
-int curSeq;//当前数据包的 seq
-int curAck;//当前等待确认的 ack
-int totalSeq;//收到的包的总数
-int totalPacket;//需要发送的包总数
-				//************************************
-				// Method: getCurTime
-				// FullName: getCurTime
-				// Access: public
-				// Returns: void
-				// Qualifier: 获取当前系统时间，结果存入 ptime 中
-				// Parameter: char * ptime
-				//************************************
+const int SEQ_SIZE = 20; //序列号的个数，从 0-19 共计 20 个
+						 //由于发送数据第一个字节，如果值为 0，则数据会发送失败
+						 //因此接收端序列号为 1-20，与发送端一一对应
+BOOL ack[SEQ_SIZE];  //收到 ack 情况，对应 0-19 的 ack
+int curSeq;  //当前数据包的 seq
+int curAck;  //当前等待确认的 ack
+int totalSeq;  //收到的包的总数
+int totalPacket;  //需要发送的包总数
+
+
+//************************************
+// Method: getCurTime
+// FullName: getCurTime
+// Access: public
+// Returns: void
+// Qualifier: 获取当前系统时间，结果存入 ptime 中
+// Parameter: char * ptime
+//************************************
 void getCurTime(char *ptime) {
 	char buffer[128];
 	memset(buffer, 0, sizeof(buffer));
@@ -42,6 +46,8 @@ void getCurTime(char *ptime) {
 		p->tm_sec);
 	strcpy_s(ptime, sizeof(buffer), buffer);
 }
+
+
 //************************************
 // Method: seqIsAvailable
 // FullName: seqIsAvailable
@@ -62,6 +68,8 @@ bool seqIsAvailable() {
 	}
 	return false;
 }
+
+
 //************************************
 // Method: timeoutHandler
 // FullName: timeoutHandler
@@ -79,13 +87,15 @@ void timeoutHandler() {
 	totalSeq -= SEND_WIND_SIZE;
 	curSeq = curAck;
 }
+
+
 //************************************
 // Method: ackHandler
 // FullName: ackHandler
 // Access: public
 // Returns: void
 // Qualifier: 收到 ack，累积确认，取数据帧的第一个字节
-//由于发送数据时，第一个字节（序列号）为 0（ ASCII）时发送失败，因此加一了，此处需要减一还原
+//由于发送数据时，第一个字节（序列号）为 0（ASCII）时发送失败，因此加一了，此处需要减一还原
 // Parameter: char c
 //************************************
 void ackHandler(char c) {
@@ -96,8 +106,7 @@ void ackHandler(char c) {
 			ack[i] = TRUE;
 		}
 		curAck = (index + 1) % SEQ_SIZE;
-	}
-	else {
+	}else{
 		//ack 超过了最大值，回到了 curAck 的左边
 		for (int i = curAck; i< SEQ_SIZE; ++i) {
 			ack[i] = TRUE;
@@ -108,6 +117,8 @@ void ackHandler(char c) {
 		curAck = index + 1;
 	}
 }
+
+
 //主函数
 int main(int argc, char* argv[])
 {
@@ -118,7 +129,7 @@ int main(int argc, char* argv[])
 	int err;
 	//版本 2.2
 	wVersionRequested = MAKEWORD(2, 2);
-	//加载 dll 文件 Scoket 库
+	//加载 dll 文件 Socket 库
 	err = WSAStartup(wVersionRequested, &wsaData);
 	if (err != 0) {
 		//找不到 winsock.dll
@@ -136,16 +147,16 @@ int main(int argc, char* argv[])
 	SOCKET sockServer = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	//设置套接字为非阻塞模式
 	int iMode = 1; //1：非阻塞， 0 阻塞：
-	ioctlsocket(sockServer, FIONBIO, (u_long FAR*) &iMode);//非阻塞设置
-	SOCKADDR_IN addrServer; //服务器地址
-							//addrServer.sin_addr.S_un.S_addr = inet_addr(SERVER_IP);
-	addrServer.sin_addr.S_un.S_addr = htonl(INADDR_ANY);//两者均可
+	ioctlsocket(sockServer, FIONBIO, (u_long FAR*) &iMode);  //非阻塞设置
+	SOCKADDR_IN addrServer;     //服务器地址
+	//addrServer.sin_addr.S_un.S_addr = inet_addr(SERVER_IP);
+	addrServer.sin_addr.S_un.S_addr = htonl(INADDR_ANY);  //两者均可
 	addrServer.sin_family = AF_INET;
 	addrServer.sin_port = htons(SERVER_PORT);
 	err = bind(sockServer, (SOCKADDR*)&addrServer, sizeof(SOCKADDR));
 	if (err) {
 		err = GetLastError();
-		printf("Could not bind the port %d for socket.Error code is %d\n", SERVER_PORT, err);
+		printf("Could not bind the port %d for socket. Error code is %d\n", SERVER_PORT, err);
 		WSACleanup();
 		return -1;
 	}
@@ -167,8 +178,7 @@ int main(int argc, char* argv[])
 	}
 	while (true) {
 		//非阻塞接收，若没有收到数据，返回值为-1
-		recvSize =
-			recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
+		recvSize = recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
 		if (recvSize < 0) {
 			Sleep(200);
 			continue;
@@ -182,13 +192,13 @@ int main(int argc, char* argv[])
 		}
 		else if (strcmp(buffer, "-testgbn") == 0) {
 			//进入 gbn 测试阶段
-			//首先 server（ server 处于 0 状态）向 client 发送 205 状态码（ server进入 1 状态）
-			//server 等待 client 回复 200 状态码，如果收到（ server 进入 2 状态），则开始传输文件，否则延时等待直至超时\
-										//在文件传输阶段， server 发送窗口大小设为
+			//首先 server（server 处于 0 状态）向 client 发送 205 状态码（server进入 1 状态）
+			//server 等待 client 回复 200 状态码，如果收到（server 进入 2 状态），则开始传输文件，否则延时等待直至超时
+			//在文件传输阶段， server 发送窗口大小设为
 			ZeroMemory(buffer, sizeof(buffer));
 			int recvSize;
 			int waitCount = 0;
-			printf("Begain to test GBN protocol,please don't abort the process\n");
+			printf("Begain to test GBN protocol, please don't abort the process.\n");
 			//加入了一个握手阶段
 			//首先服务器向客户端发送一个 205 大小的状态码（我自己定义的）表示服务器准备好了，可以发送数据
 			//客户端收到 205 之后回复一个 200 大小的状态码，表示客户端准备好了，可以接收数据了
@@ -198,77 +208,73 @@ int main(int argc, char* argv[])
 			bool runFlag = true;
 			while (runFlag) {
 				switch (stage) {
-				case 0://发送 205 阶段
-					buffer[0] = 205;
-					sendto(sockServer, buffer, strlen(buffer) + 1, 0, (SOCKADDR*)&addrClient, sizeof(SOCKADDR));
-					Sleep(100);
-					stage = 1;
-					break;
-				case 1://等待接收 200 阶段，没有收到则计数器+1，超时则放弃此次“连接”，等待从第一步开始
-					recvSize =
-						recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
-					if (recvSize < 0) {
-						++waitCount;
-						if (waitCount > 20) {
-							runFlag = false;
-							printf("Timeout error\n");
-							break;
+					case 0://发送 205 阶段
+						buffer[0] = 205;
+						sendto(sockServer, buffer, strlen(buffer) + 1, 0, (SOCKADDR*)&addrClient, sizeof(SOCKADDR));
+						Sleep(100);
+						stage = 1;
+						break;
+					case 1://等待接收 200 阶段，没有收到则计数器+1，超时则放弃此次“连接”，等待从第一步开始
+						recvSize = recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
+						if (recvSize < 0) {
+							++waitCount;
+							if (waitCount > 20) {
+								runFlag = false;
+								printf("Timeout error\n");
+								break;
+							}
+							Sleep(500);
+							continue;
+						}
+						else {
+							if ((unsigned char)buffer[0] == 200) {
+								printf("Begin a file transfer\n");
+								printf("File size is %dB, each packet is 1024B and packet total num is %d\n", sizeof(data), totalPacket);
+								curSeq = 0;
+								curAck = 0;
+								totalSeq = 0;
+								waitCount = 0;
+								stage = 2;
+							}
+						}
+						break;
+					case 2:  //数据传输阶段
+						if (seqIsAvailable()) {
+							//发送给客户端的序列号从 1 开始
+							buffer[0] = curSeq + 1;
+							ack[curSeq] = FALSE;
+							//数据发送的过程中应该判断是否传输完成
+							//为简化过程此处并未实现
+							memcpy(&buffer[1], data + 1024 * totalSeq, 1024);
+							printf("send a packet with a seq of %d\n", curSeq);
+							sendto(sockServer, buffer, BUFFER_LENGTH, 0, (SOCKADDR*)&addrClient, sizeof(SOCKADDR));
+							++curSeq;
+							curSeq %= SEQ_SIZE;
+							++totalSeq;
+							Sleep(500);
+						}
+						//等待 Ack，若没有收到，则返回值为-1，计数器+1
+						recvSize = recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
+						if (recvSize < 0) {
+							waitCount++;
+							//20 次等待 ack 则超时重传
+							if (waitCount > 20)
+							{
+								timeoutHandler();
+								waitCount = 0;
+							}
+						}
+						else {
+							//收到 ack
+							ackHandler(buffer[0]);
+							waitCount = 0;
 						}
 						Sleep(500);
-						continue;
+						break;
 					}
-					else {
-						if ((unsigned char)buffer[0] == 200) {
-							printf("Begin a file transfer\n");
-							printf("File size is %dB, each packet is 1024B and packet total num is %d\n", sizeof(data), totalPacket);
-							curSeq = 0;
-							curAck = 0;
-							totalSeq = 0;
-							waitCount = 0;
-							stage = 2;
-						}
-					}
-					break;
-				case 2://数据传输阶段
-					if (seqIsAvailable()) {
-						//发送给客户端的序列号从 1 开始
-						buffer[0] = curSeq + 1;
-						ack[curSeq] = FALSE;
-						//数据发送的过程中应该判断是否传输完成
-						//为简化过程此处并未实现
-						memcpy(&buffer[1], data + 1024 * totalSeq, 1024);
-						printf("send a packet with a seq of %d\n", curSeq);
-						sendto(sockServer, buffer, BUFFER_LENGTH, 0,
-							(SOCKADDR*)&addrClient, sizeof(SOCKADDR));
-						++curSeq;
-						curSeq %= SEQ_SIZE;
-						++totalSeq;
-						Sleep(500);
-					}
-					//等待 Ack，若没有收到，则返回值为-1，计数器+1
-					recvSize =
-						recvfrom(sockServer, buffer, BUFFER_LENGTH, 0, ((SOCKADDR*)&addrClient), &length);
-					if (recvSize < 0) {
-						waitCount++;
-						//20 次等待 ack 则超时重传
-						if (waitCount > 20)
-						{
-							timeoutHandler();
-							waitCount = 0;
-						}
-					}
-					else {
-						//收到 ack
-						ackHandler(buffer[0]);
-						waitCount = 0;
-					}
-					Sleep(500);
-					break;
 				}
-			}
 		}
-		sendto(sockServer, buffer, strlen(buffer) + 1, 0, (SOCKADDR*)&addrClient,
-			sizeof(SOCKADDR));
+		sendto(sockServer, buffer, strlen(buffer) + 1, 0, (SOCKADDR*)&addrClient, sizeof(SOCKADDR));
 		Sleep(500);
 	}
 	//关闭套接字，卸载库

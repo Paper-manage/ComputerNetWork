@@ -2,26 +2,32 @@
 #include <stdlib.h>
 #include <WinSock2.h>
 #include <time.h>
+
 #pragma comment(lib,"ws2_32.lib")
+
 #define SERVER_PORT 12340 //接收数据的端口号
 #define SERVER_IP "127.0.0.1" // 服务器的 IP 地址
 const int BUFFER_LENGTH = 1026;
-const int SEQ_SIZE = 20;//接收端序列号个数，为 1~20
-						/****************************************************************/
-						/* -time 从服务器端获取当前时间
-						-quit 退出客户端
-						-testgbn [X] 测试 GBN 协议实现可靠数据传输
-						[X] [0,1] 模拟数据包丢失的概率
-						[Y] [0,1] 模拟 ACK 丢失的概率
-						*/
-						/****************************************************************/
+const int SEQ_SIZE = 20;//接收端序列号个数，为 1-20
+
+
+/****************************************************************/
+/*  -time 从服务器端获取当前时间
+	-quit 退出客户端
+	-testgbn [X] 测试 GBN 协议实现可靠数据传输
+				[X] [0,1] 模拟数据包丢失的概率
+				[Y] [0,1] 模拟 ACK 丢失的概率
+*/
+/****************************************************************/
 void printTips() {
 	printf("*****************************************\n");
-	printf("| -time to get current time |\n");
-	printf("| -quit to exit client |\n");
-	printf("| -testgbn [X] [Y] to test the gbn |\n");
+	printf("|    -time to get current time |\n");
+	printf("|    -quit to exit client |\n");
+	printf("|    -testgbn [X] [Y] to test the gbn |\n");
 	printf("*****************************************\n");
 }
+
+
 //************************************
 // Method: lossInLossRatio
 // FullName: lossInLossRatio
@@ -38,6 +44,8 @@ BOOL lossInLossRatio(float lossRatio) {
 	}
 	return FALSE;
 }
+
+
 int main(int argc, char* argv[])
 {
 	//加载套接字库（必须）
@@ -73,19 +81,18 @@ int main(int argc, char* argv[])
 	int len = sizeof(SOCKADDR);
 	//为了测试与服务器的连接，可以使用 -time 命令从服务器端获得当前时间
 	//使用 -testgbn [X] [Y] 测试 GBN 其中[X]表示数据包丢失概率
-	// [Y]表示 ACK 丢包概率
+	//					[Y]表示 ACK 丢包概率
 	printTips();
 	int ret;
 	int interval = 1;//收到数据包之后返回 ack 的间隔，默认为 1 表示每个都返回 ack， 0 或者负数均表示所有的都不返回 ack
 	char cmd[128];
 	float packetLossRatio = 0.2; //默认包丢失率 0.2
-	float ackLossRatio = 0.2; //默认 ACK 丢失率 0.2
-							  //用时间作为随机种子，放在循环的最外面
+	float ackLossRatio = 0.2;   //默认 ACK 丢失率 0.2
+	//用时间作为随机种子，放在循环的最外面
 	srand((unsigned)time(NULL));
 	while (true) {
 		gets_s(buffer);
-		ret =
-			sscanf(buffer, "%s%f%f", &cmd, &packetLossRatio, &ackLossRatio);
+		ret = sscanf(buffer, "%s%f%f", &cmd, &packetLossRatio, &ackLossRatio);
 		//开始 GBN 测试，使用 GBN 协议实现 UDP 可靠文件传输
 		if (!strcmp(cmd, "-testgbn")) {
 			printf("%s\n", "Begin to test GBN protocol, please don't abort the process");
@@ -93,32 +100,30 @@ int main(int argc, char* argv[])
 			int waitCount = 0;
 			int stage = 0;
 			BOOL b;
-			unsigned char u_code;//状态码
-			unsigned short seq;//包的序列号
-			unsigned short recvSeq;//接收窗口大小为 1，已确认的序列号
-			unsigned short waitSeq;//等待的序列号
-			sendto(socketClient, "-testgbn", strlen("-testgbn") + 1, 0,
-				(SOCKADDR*)&addrServer, sizeof(SOCKADDR));
+			unsigned char u_code;  //状态码
+			unsigned short seq;  //包的序列号
+			unsigned short recvSeq;  //接收窗口大小为 1，已确认的序列号
+			unsigned short waitSeq;  //等待的序列号
+			sendto(socketClient, "-testgbn", strlen("-testgbn") + 1, 0, (SOCKADDR*)&addrServer, sizeof(SOCKADDR));
 			while (true)
 			{
 				//等待 server 回复设置 UDP 为阻塞模式
 				recvfrom(socketClient, buffer, BUFFER_LENGTH, 0, (SOCKADDR*)&addrServer, &len);
 				switch (stage) {
-				case 0://等待握手阶段
+				case 0:  //等待握手阶段
 					u_code = (unsigned char)buffer[0];
 					if ((unsigned char)buffer[0] == 205)
 					{
 						printf("Ready for file transmission\n");
 						buffer[0] = 200;
 						buffer[1] = '\0';
-						sendto(socketClient, buffer, 2, 0,
-							(SOCKADDR*)&addrServer, sizeof(SOCKADDR));
+						sendto(socketClient, buffer, 2, 0, (SOCKADDR*)&addrServer, sizeof(SOCKADDR));
 						stage = 1;
 						recvSeq = 0;
 						waitSeq = 1;
 					}
 					break;
-				case 1://等待接收数据阶段
+				case 1:  //等待接收数据阶段
 					seq = (unsigned short)buffer[0];
 					//随机法模拟包是否丢失
 					b = lossInLossRatio(packetLossRatio);
@@ -138,9 +143,7 @@ int main(int argc, char* argv[])
 						buffer[0] = seq;
 						recvSeq = seq;
 						buffer[1] = '\0';
-
-					}
-					else {
+					}else {
 						//如果当前一个包都没有收到，则等待 Seq 为 1 的数据包，不是则不返回 ACK（因为并没有上一个正确的 ACK）
 						if (!recvSeq) {
 							continue;
@@ -150,23 +153,18 @@ int main(int argc, char* argv[])
 					}
 					b = lossInLossRatio(ackLossRatio);
 					if (b) {
-						printf("The ack of %d loss\n", (unsigned
-							char)buffer[0]);
+						printf("The ack of %d loss\n", (unsigned char)buffer[0]);
 						continue;
 					}
-					sendto(socketClient, buffer, 2, 0,
-						(SOCKADDR*)&addrServer, sizeof(SOCKADDR));
+					sendto(socketClient, buffer, 2, 0, (SOCKADDR*)&addrServer, sizeof(SOCKADDR));
 					printf("send a ack of %d\n", (unsigned char)buffer[0]);
 					break;
 				}
 				Sleep(500);
 			}
 		}
-		sendto(socketClient, buffer, strlen(buffer) + 1, 0,
-			(SOCKADDR*)&addrServer, sizeof(SOCKADDR));
-		ret =
-			recvfrom(socketClient, buffer, BUFFER_LENGTH, 0, (SOCKADDR*)&addrServer,
-				&len);
+		sendto(socketClient, buffer, strlen(buffer) + 1, 0, (SOCKADDR*)&addrServer, sizeof(SOCKADDR));
+		ret = recvfrom(socketClient, buffer, BUFFER_LENGTH, 0, (SOCKADDR*)&addrServer, &len);
 		printf("%s\n", buffer);
 		if (!strcmp(buffer, "Good bye!")) {
 			break;
